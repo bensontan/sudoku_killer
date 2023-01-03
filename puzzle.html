@@ -1,0 +1,280 @@
+<html lang="en">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<head>
+</head>
+<body>
+<canvas id='puzzle'></canvas>
+<script script='text/javascript'>
+
+var data = [	[
+			[5,0,0],
+			[8,0,1],
+			[25,0,2,1,0,1,1,1,2,2,2],
+			[15,2,0,2,1,3,0],
+			[9,0,3,1,3],
+			[13,0,4,1,4,2,4],
+			[6,0,5,0,6],
+			[9,1,5,1,6],
+			[15,2,5,3,5],
+			[17,2,3,3,2,3,3,4,3],
+			[17,0,7,1,7],
+			[7,0,8],
+			[3,1,8],
+			[13,2,6,2,7,3,7,4,7],
+			[15,2,8,3,8,4,8],
+			[6,3,1],
+			[13,3,4,4,4],
+			[17,3,6,4,6,5,6],
+			[6,4,0,4,1],
+			[4,4,2,5,2],
+			[8,4,5,5,5],
+			[7,5,0],
+			[28,5,1,6,0,6,1,6,2,7,1],
+			[14,5,3,5,4],
+			[19,5,7,5,8,6,7,6,8],
+			[12,6,3,7,3,7,4],
+			[23,6,4,6,5,6,6,7,6],
+			[7,7,0,8,0],
+			[8,7,2],
+			[13,7,5,8,5,8,6],
+			[11,7,7,8,7],
+			[6,7,8,8,8],
+			[11,8,1,8,2],
+			[15,8,3,8,4]
+		],[	[0,0,0,3,0,0,0,0,0],
+			[0,0,2,0,0,0,0,0,0],
+			[0,0,0,0,0,0,0,2,0],
+			[0,0,0,0,0,7,0,0,1],
+			[0,0,0,1,0,0,0,0,0],
+			[0,0,0,0,0,0,0,0,0],
+			[0,7,0,0,0,0,0,0,0],
+			[0,0,0,0,0,0,7,0,0],
+			[6,0,0,0,0,0,0,5,0]
+		]];
+
+var Puzzle = (canvas, customize) => {
+	var basic = {
+			'NxN': 9,
+			'framewidth': 3, 'gridwidth': 1,
+			'cellfontsize':30, 'notefontsize':9,
+			'cellwidth':50, 'cellheight':50,
+			'cellpadx': 10, 'cellpady': 10,
+			'padx':5, 'pady':5,
+	};
+	var attrs = {...basic, ...customize};
+	var puzzleobj;
+	canvas.width = attrs.cellwidth * 10;
+	canvas.height = attrs.cellheight * 10;
+
+	puzzleobj = {
+		'ctx': canvas.getContext('2d'),
+		'NxN': attrs['NxN'],
+		'top': attrs['cellpady'],
+		'left': attrs['cellpadx'],
+		'framewidth': attrs['framewidth'],
+		'gridwidth': attrs['gridwidth'],
+		'cellfontsize': attrs['cellfontsize'],
+		'notefontsize': attrs['notefontsize'],
+		'cellwidth': attrs['cellwidth'],
+		'cellheight': attrs['cellheight'],
+		'cellpadx': attrs['cellpadx'],
+		'cellpady': attrs['cellpady'],
+		'padx': attrs['padx'],
+		'pady': attrs['pady'],
+		'offsets':  [
+				[ 0, -1, 0, 0, 1, 0,  attrs['padx'],  attrs['pady'], -attrs['padx'],  attrs['pady']],
+				[-1,  0, 0, 0, 0, 1,  attrs['padx'],  attrs['pady'],  attrs['padx'], -attrs['pady']],
+				[ 1,  0, 1, 0, 1, 1, -attrs['padx'],  attrs['pady'], -attrs['padx'], -attrs['pady']],
+				[ 0,  1, 0, 1, 1, 1,  attrs['padx'], -attrs['pady'], -attrs['padx'], -attrs['pady']] ],
+		'_bind': (x, y) => {return ((y<<4)|x)},
+		'_create_note_object': (notes) => {
+			var noteobj;
+			noteobj = {
+				'weight': notes[0],
+				'group': {},
+				'lines':[],
+				'relations':{},
+				'points':[],
+				'titlex':0,
+				'_cross_x_cell': (prevx, currx) => {
+					return ((prevx != currx) && (Math.floor(prevx / puzzleobj.cellwidth + 0.5) == Math.floor(currx / puzzleobj.cellwidth + 0.5)));
+				},
+				'_cross_y_cell': (prevy, curry) => {
+					return ((prevy != curry) && (Math.floor(prevy / puzzleobj.cellheight + 0.5) == Math.floor(curry / puzzleobj.cellheight + 0.5)));
+				},
+				'_create_draw_points': () => {
+					var x1, x2, y1, y2, lineptr=0, base = 2, linedata, prevx, prevy, currx, curry, relation;
+					linedata = noteobj.lines[lineptr];
+					x1 = linedata[0];
+					y1 = linedata[1];
+					x2 = linedata[2];
+					y2 = linedata[3];
+					prevx = x1 * puzzleobj.cellwidth + linedata[4];
+					prevy = y1 * puzzleobj.cellheight + linedata[5];
+					noteobj.points.push([prevx, prevy]);
+
+					for (var i=0; i < noteobj.lines.length; ++i) {
+						currx = x2 * puzzleobj.cellwidth + linedata[base+4];
+						curry = y2 * puzzleobj.cellheight + linedata[base+5];
+						if (noteobj._cross_x_cell(prevx, currx)) noteobj.points.push([currx, prevy]);
+						if (noteobj._cross_y_cell(prevy, curry)) noteobj.points.push([prevx, curry]);
+						noteobj.points.push([currx, curry]);
+						prevx = currx;
+						prevy = curry;
+						relation = noteobj.relations[puzzleobj._bind(x2, y2)];
+						lineptr = (relation[0] == lineptr)?relation[1]:relation[0];
+						linedata = noteobj.lines[lineptr];
+						x1 = x2;
+						y1 = y2;
+						// calculate next point base offset depends on left-to-right (2), or right-to-left (0)
+						base = (linedata[0]==x1 && linedata[1]==y1)? 2 : 0;
+						x2 = linedata[base];
+						y2 = linedata[base+1];
+					}
+					delete noteobj.lines;
+					delete noteobj.relations;
+				},
+				'_adjust_points_for_weight_title': () => {
+					var textattr = puzzleobj.ctx.measureText(noteobj.weight);
+					noteobj.titlex = noteobj.points[0][0];
+					noteobj.points[0][0] += textattr.width + puzzleobj.padx / 2;
+					noteobj.points[noteobj.points.length-1][1] += puzzleobj.notefontsize + puzzleobj.pady / 2;
+				},
+				'_draw_points': () => {
+					var ctx = puzzleobj.ctx, pts = noteobj.points;
+					ctx.beginPath();
+					ctx.setLineDash([3,3]);
+					ctx.strokeStyle = '#000000';
+					ctx.lineWidth = 1;
+					ctx.moveTo(pts[0][0] + puzzleobj.left,pts[0][1] + puzzleobj.top);
+					for (var i=1; i<pts.length; ++i) ctx.lineTo(pts[i][0] + puzzleobj.left, pts[i][1] + puzzleobj.top);
+					ctx.stroke();
+				},
+				'_draw_weight': () => {
+					var ctx = puzzleobj.ctx, pts = noteobj.points;
+					ctx.beginPath();
+					ctx.font = puzzleobj.notefontsize + 'px Arial';
+					ctx.textAlign = 'left';
+					ctx.textBaseline = 'top';
+					ctx.strokeStyle = '#000000';
+					ctx.fillText(noteobj.weight, noteobj.titlex + puzzleobj.left, pts[0][1] + puzzleobj.top); //  + puzzleobj.padx, pts[0][1] + puzzleobj.pady);
+				}
+			};
+			var relatecell, x, y,x1, y1, x2, y2, connections, offsets, lineindex = 0;
+
+			for (var i=1; i<notes.length; i+=2) {
+				noteobj.group[puzzleobj._bind(notes[i+1], notes[i])] = 1;
+			}
+			for (var i=1; i<notes.length; i+=2) {
+				y = notes[i];
+				x = notes[i+1];
+				for (var j=0; j<4; ++j) {
+					offsets = puzzleobj.offsets[j];
+					relatecell = puzzleobj._bind(x+offsets[0], y+offsets[1]);
+
+					if (!(relatecell in noteobj.group)) {
+						x1 = x+offsets[2];
+						y1 = y+offsets[3];
+						x2 = x+offsets[4];
+						y2 = y+offsets[5];
+
+						noteobj.lines.push([x1,y1,x2,y2,
+								offsets[6],offsets[7],offsets[8],offsets[9]]);
+						connections = [puzzleobj._bind(x1,y1), puzzleobj._bind(x2,y2)];
+						// create relations to bind 2 lines, then can quickly find the next line from current line
+						for (var k=0; k<2;++k) {
+							// ensure the dictionary exist
+							if (!(connections[k] in noteobj.relations)) noteobj.relations[connections[k]] = [];
+							noteobj.relations[connections[k]].push(lineindex);
+						}
+						lineindex = lineindex + 1;
+					}
+				}
+			}
+			delete noteobj.group;
+			return noteobj;
+		},
+		'_create_cell_object': (cellvalues) => {
+			var cellobj;
+			cellobj = {
+				'values': cellvalues,
+				'_draw_values': () => {
+					var ctx = puzzleobj.ctx, posx, posy,
+							top = puzzleobj.top, left = puzzleobj.left, cellfontsize = puzzleobj.cellfontsize,
+							cellwidth = puzzleobj.cellwidth, cellheight = puzzleobj.cellheight,
+							cellpadx = puzzleobj.cellpadx, cellpady = puzzleobj.cellpady;
+
+					ctx.font = cellfontsize + 'px Arial';
+					ctx.textAlign = 'left';
+					ctx.textBaseline = 'top';
+					ctx.strokeStyle = '#000000';
+					for (var i=0; i<cellobj.values.length; ++i) {
+						posy = top + i * cellheight + (cellpady / 2 + cellheight - cellfontsize) / 2;
+						for (var j=0; j<cellobj.values[i].length; ++j) {
+							if (cellobj.values[i][j] != 0) {
+								posx = left + j * cellwidth + (cellpadx + cellwidth - cellfontsize) / 2;
+								ctx.fillText(cellobj.values[i][j], posx, posy);
+							}
+						}
+					}
+				}
+			}
+			return cellobj;
+		},
+		'_create_board_object': () => {
+			var boardobj;
+			boardobj = {
+				'_draw_board': () => {
+					var ctx = puzzleobj.ctx, cellwidth = puzzleobj.cellwidth, cellheight = puzzleobj.cellheight,
+							top = puzzleobj.top, left = puzzleobj.left, NxN = puzzleobj.NxN;
+
+					ctx.strokeStyle = '#000000';
+					ctx.lineWidth = puzzleobj.framewidth;
+					ctx.setLineDash([]);
+					ctx.beginPath();
+					ctx.rect(left, top, cellwidth * NxN, cellheight * NxN);
+					ctx.stroke();
+					for (var i = 1; i < NxN; ++i) {
+						ctx.beginPath();
+						if (i%3) {
+							ctx.lineWidth = puzzleobj.gridwidth;
+							ctx.strokeStyle = '#AAAAAA';
+						} else {
+							ctx.lineWidth = puzzleobj.framewidth;
+							ctx.strokeStyle = '#000000';
+						}
+						ctx.moveTo(left + cellwidth * i, top);
+						ctx.lineTo(left + cellwidth * i, top + cellheight * NxN);
+						ctx.moveTo(left, top + cellheight * i);
+						ctx.lineTo(left + cellwidth * NxN, top + cellheight * i);
+						ctx.stroke();
+					}
+				}
+			};
+			return boardobj;
+		},
+		'draw': (noteslist, cellvalues) => {
+			var 	cellobj = puzzleobj._create_cell_object(cellvalues),
+					boardobj = puzzleobj._create_board_object(),
+					noteobj;
+			for (var i=0; i<noteslist.length; ++i) {
+				noteobj = puzzleobj._create_note_object(noteslist[i]);
+				noteobj._create_draw_points();
+				noteobj._adjust_points_for_weight_title();
+				noteobj._draw_points();
+				noteobj._draw_weight();
+			}
+			cellobj._draw_values();
+			boardobj._draw_board();
+		}
+	};
+	return puzzleobj;
+};
+
+var canvas = document.getElementById('puzzle');
+var puzzleobj = Puzzle(canvas, {});
+puzzleobj.draw(data[0], data[1]);
+
+</script>
+</body>
+</html>
